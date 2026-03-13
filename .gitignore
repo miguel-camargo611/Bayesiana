@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.env
+
+# Data
+# Raw eBird data directory (very large)
+data/ebd_CO-CUN_smp_relJan-2026/
+
+# Plots and EDA results
+# Optional: keep them if you want your teammates to see them
+# eda_copeton/plots/
+# eda/plots/
+
+# OS
+.DS_Store
+Thumbs.db
