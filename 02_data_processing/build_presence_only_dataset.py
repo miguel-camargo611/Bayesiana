@@ -316,6 +316,81 @@ def load_pollution():
     df_poll = pd.read_csv(POLLUTION_FILE, low_memory=False)
     print(f"  Registros de contaminación cargados: {len(df_poll):,}")
 
+    # Normalizar unidades antes de pivotar. OpenAQ/RMCAB mezcla gases en ppm y
+    # ug/m3; el modelo necesita una escala unica por contaminante.
+    target_columns = {
+        'co': 'co_ppm',
+        'no2': 'no2_ppb',
+        'o3': 'o3_ppb',
+        'so2': 'so2_ppb',
+        'pm10': 'pm10_ugm3',
+        'pm25': 'pm25_ugm3',
+    }
+    molecular_weight = {
+        'co': 28.01,
+        'no2': 46.0055,
+        'o3': 48.00,
+        'so2': 64.066,
+    }
+
+    def normalize_unit(unit):
+        unit = str(unit).strip().lower()
+        unit = unit.replace('µ', 'u').replace('μ', 'u')
+        # El CSV puede venir con mojibake: "ľg/mł" en vez de "ug/m3".
+        unit = unit.replace('ľ', 'u').replace('ł', '3')
+        unit = unit.replace('³', '3').replace('^3', '3')
+        unit = unit.replace(' ', '')
+        if unit in {'ug/m3', 'ugm3', 'ug/mł'}:
+            return 'ug/m3'
+        if unit in {'ppm', 'ppb'}:
+            return unit
+        return unit
+
+    def convert_pollutant_value(row):
+        parameter = str(row['parameter']).lower()
+        value = row['value']
+        unit = row['unit_norm']
+
+        if pd.isna(value) or value < 0:
+            return np.nan
+
+        if parameter in {'pm10', 'pm25'}:
+            return value if unit == 'ug/m3' else np.nan
+
+        if parameter == 'co':
+            if unit == 'ppm':
+                return value
+            if unit == 'ppb':
+                return value / 1000.0
+            if unit == 'ug/m3':
+                return value * 24.45 / (molecular_weight[parameter] * 1000.0)
+
+        if parameter in {'no2', 'o3', 'so2'}:
+            if unit == 'ppb':
+                return value
+            if unit == 'ppm':
+                return value * 1000.0
+            if unit == 'ug/m3':
+                return value * 24.45 / molecular_weight[parameter]
+
+        return np.nan
+
+    df_poll['parameter'] = df_poll['parameter'].astype(str).str.lower()
+    df_poll['value'] = pd.to_numeric(df_poll['value'], errors='coerce')
+    df_poll['unit_norm'] = df_poll['unit'].apply(normalize_unit)
+    df_poll = df_poll[df_poll['parameter'].isin(target_columns)].copy()
+    df_poll['value_converted'] = df_poll.apply(convert_pollutant_value, axis=1)
+    df_poll['pollutant_column'] = df_poll['parameter'].map(target_columns)
+
+    converted_summary = (
+        df_poll
+        .groupby(['parameter', 'unit_norm'])['value_converted']
+        .agg(['count', 'median'])
+        .reset_index()
+    )
+    print("  Unidades convertidas a: CO=ppm; NO2/O3/SO2=ppb; PM=ug/m3")
+    print(converted_summary.to_string(index=False))
+
     # Convertir UTC a hora local de Bogotá (UTC-5)
     df_poll['datetime'] = pd.to_datetime(df_poll['datetime'], utc=True, errors='coerce')
     df_poll = df_poll.dropna(subset=['datetime'])
@@ -327,18 +402,12 @@ def load_pollution():
     print("  Pivotando tabla de contaminación...")
     df_wide = df_poll.pivot_table(
         index=['station_name', 'date', 'hour'],
-        columns='parameter',
-        values='value',
+        columns='pollutant_column',
+        values='value_converted',
         aggfunc='mean'
     ).reset_index()
     df_wide.columns.name = None
 
-    # Renombrar contaminantes con unidades
-    rename_map = {
-        'co': 'co_ppm', 'no2': 'no2_ppb', 'o3': 'o3_ppb',
-        'pm10': 'pm10_ugm3', 'pm25': 'pm25_ugm3', 'so2': 'so2_ugm3'
-    }
-    df_wide = df_wide.rename(columns={k: v for k, v in rename_map.items() if k in df_wide.columns})
     print(f"  Tabla contaminación procesada: {len(df_wide):,} filas (estación × fecha × hora)")
     return df_wide
 
@@ -360,7 +429,7 @@ def merge_with_pollution(df_points, df_poll_wide, df_stations, label="puntos"):
     df_points = df_points[df_points['distance_km'] <= MAX_DISTANCE_KM].copy()
     print(f"  [{label}] Descartados {before - len(df_points):,} puntos a > {MAX_DISTANCE_KM}km de estacion.")
 
-    pollutant_cols_all = ['co_ppm', 'no2_ppb', 'o3_ppb', 'pm10_ugm3', 'pm25_ugm3', 'so2_ugm3']
+    pollutant_cols_all = ['co_ppm', 'no2_ppb', 'o3_ppb', 'pm10_ugm3', 'pm25_ugm3', 'so2_ppb']
     existing_pollutants = [c for c in pollutant_cols_all if c in df_poll_wide.columns]
 
     # Calcular promedio diario: agrupa por estacion y fecha
@@ -428,7 +497,7 @@ def run():
     # Ordenar columnas
     id_cols = ['y', 'source', 'lat', 'lon', 'date', 'matched_hour', 'month', 'year',
                'nearest_station', 'distance_km', 'quadrature_weight']
-    pollutant_cols = ['co_ppm', 'no2_ppb', 'o3_ppb', 'pm10_ugm3', 'pm25_ugm3', 'so2_ugm3']
+    pollutant_cols = ['co_ppm', 'no2_ppb', 'o3_ppb', 'pm10_ugm3', 'pm25_ugm3', 'so2_ppb']
     extra_cols = [c for c in df_final.columns if c not in id_cols + pollutant_cols]
 
     final_cols = id_cols + [c for c in pollutant_cols if c in df_final.columns] + extra_cols

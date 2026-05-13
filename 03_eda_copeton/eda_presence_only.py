@@ -2,6 +2,8 @@ import pandas as pd
 import numpy as np
 import os
 import seaborn as sns
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import folium
 from folium.plugins import MarkerCluster
@@ -23,7 +25,7 @@ def perform_eda():
     n_pres = (df['y'] == 1).sum()
     n_bg = (df['y'] == 0).sum()
     
-    pollutant_cols = ['co_ppm', 'no2_ppb', 'o3_ppb', 'pm10_ugm3', 'pm25_ugm3', 'so2_ugm3']
+    pollutant_cols = ['co_ppm', 'no2_ppb', 'o3_ppb', 'pm10_ugm3', 'pm25_ugm3', 'so2_ppb']
     
     # 1. Report Header
     report = []

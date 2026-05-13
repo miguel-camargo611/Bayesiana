@@ -12,6 +12,10 @@ ebird_raw_data/
 # Large processed data files (>25MB)
 data/raw/bogota_pollution_hourly.csv
 
+# Large Bayesian sampling artifacts
+*.nc
+*.pkl
+
 # Plots and EDA results
 # Optional: keep them if you want your teammates to see them
 # eda_copeton/plots/

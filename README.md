@@ -169,6 +169,12 @@ Dataset Final: copeton_presence_only_ready.csv
         ├─ y = 1 → 1,480 Presencias GBIF con contaminación medida
         └─ y = 0 → 1,977 Puntos de fondo con contaminación asignada
            Total: 3,457 registros | 19 variables
+        │
+        ▼ Filtro model-ready: PM10 + NO2 + O3 sin nulos
+copeton_presence_only_model_ready_pm10_no2_o3.csv
+        ├─ y = 1 → 740 Presencias
+        └─ y = 0 → 614 Puntos de fondo
+           Total: 1,354 registros
 ```
 
 ### Sobre los Background Points: Método Estándar (Renner & Warton, 2013)
@@ -201,7 +207,7 @@ La literatura moderna de SDM (Species Distribution Modeling) trata los backgroun
 | **`o3_ppb`** | Numérica | Ozono troposférico | Covariable ecológica ($\beta$) |
 | **`no2_ppb`** | Numérica | Dióxido de Nitrógeno | Covariable ecológica ($\beta$) |
 | **`co_ppm`** | Numérica | Monóxido de Carbono | Covariable ecológica ($\beta$) |
-| **`so2_ugm3`** | Numérica | Dióxido de Azufre | Covariable ecológica ($\beta$) |
+| **`so2_ppb`** | Numérica | Dióxido de Azufre | Covariable ecológica ($\beta$) |
 | **`quadrature_weight`** | Numérica | Peso del punto de cuadratura (0 para presencias, A/N para fondo) | Corrección IPP |
 | **`source`** | Texto | `"gbif"` o `"background"` | Trazabilidad |
 
@@ -259,7 +265,8 @@ PROYECTOBAYESIANA-COPETON/
 │   ├─ interim/
 │   │   └─ birds_pollution_merged.csv    ← Merge intermedio (referencia)
 │   └─ processed/
-│       └─ copeton_presence_only_ready.csv ← [OUTPUT] Dataset final del modelo
+│       ├─ copeton_presence_only_ready.csv ← [OUTPUT] Dataset presence-background completo
+│       └─ copeton_presence_only_model_ready_pm10_no2_o3.csv ← [OUTPUT] Dataset limpio para modelar
 │
 └─ README.md                         ← Este archivo
 ```
@@ -285,11 +292,20 @@ El script genera `data/processed/copeton_presence_only_ready.csv` con:
 - Puntos de fondo con sus pesos de cuadratura
 - Covariables de contaminación unidas espaciotemporalmente
 
-### Paso 2 (Próximo): Ajustar el modelo Bayesiano
+### Paso 2: Generar dataset limpio para modelar
+
+```bash
+python 02_data_processing/build_presence_only_modeling_dataset.py
+```
+
+El script genera `data/processed/copeton_presence_only_model_ready_pm10_no2_o3.csv` usando solo PM10, NO2 y O3, sin nulos en las covariables del modelo.
+
+### Paso 3: Ajustar el modelo Bayesiano
 
 ```python
 # Ver: 04_bayesian_model/presence_only_logic.md
-# Implementación en PyMC (próxima entrega)
+# Implementación en PyMC recomendada:
+# 04_bayesian_model/02_modelo_presencia_fondo_pm10_no2_o3_run_all.ipynb
 ```
 
 ---
